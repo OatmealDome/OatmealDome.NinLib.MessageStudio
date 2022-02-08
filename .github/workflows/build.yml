@@ -1,0 +1,43 @@
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  release:
+    types:
+      - published
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      
+      - name: Setup .NET Core
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: 6.0.101
+      
+      - name: Setup NuGet Source
+        run: dotnet nuget add source "https://nuget.pkg.github.com/oatmealdome/index.json" --name ghcr --username ${{ github.repository_owner }} --password ${{ secrets.GITHUB_TOKEN }} --store-password-in-clear-text
+
+      - name: Install dependencies
+        run: dotnet restore
+        
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+        
+      - name: Test
+        run: dotnet test --no-restore --verbosity normal
+      
+      - name: Pack
+        if: github.event_name == 'release'
+        run: dotnet pack --configuration Release --no-restore --verbosity normal --output .
+      
+      - name: Push to NuGet Source
+        if: github.event_name == 'release'
+        run: dotnet nuget push *.nupkg --source ghcr
