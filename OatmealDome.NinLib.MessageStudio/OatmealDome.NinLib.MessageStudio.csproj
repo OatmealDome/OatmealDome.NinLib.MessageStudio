@@ -8,6 +8,8 @@
         <PackageId>OatmealDome.NinLib.MessageStudio</PackageId>
         <Version>1.0.0</Version>
         <Authors>OatmealDome</Authors>
+        <Description>A library to parse MessageStudio files.</Description>
+        <RepositoryUrl>https://github.com/OatmealDome/OatmealDome.NinLib.MessageStudio</RepositoryUrl>
     </PropertyGroup>
 
     <ItemGroup>
