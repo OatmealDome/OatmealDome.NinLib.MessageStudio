@@ -48,7 +48,7 @@ public sealed class Msbt
         // Verify the magic numbers
         if (reader.ReadString(8) != "MsgStdBn")
         {
-            throw new Exception("Not a MSBT file");
+            throw new MessageStudioException("Not a MSBT file");
         }
 
         // Read BOM
@@ -81,7 +81,7 @@ public sealed class Msbt
                 _encoding = Encoding.UTF32;
                 break;
             default:
-                throw new Exception($"Unsupported encoding '{encoding:x}'");
+                throw new MessageStudioException($"Unsupported encoding '{encoding:x}'");
         }
 
         byte version = reader.ReadByte();
