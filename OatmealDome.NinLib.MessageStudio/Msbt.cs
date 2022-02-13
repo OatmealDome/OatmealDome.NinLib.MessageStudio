@@ -85,6 +85,11 @@ public sealed class Msbt
         }
 
         byte version = reader.ReadByte();
+        if (version != 0x3)
+        {
+            throw new MessageStudioException($"Unsupported version '{version}'");
+        }
+        
         ushort sectionCount = reader.ReadUInt16();
 
         reader.Seek(2); // padding?
