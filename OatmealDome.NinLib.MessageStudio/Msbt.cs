@@ -50,7 +50,8 @@ public sealed class Msbt
         }
 
         // Read BOM
-        if (reader.ReadByte() == 0xFF && reader.ReadByte() == 0xFE)
+        ushort bom = reader.ReadUInt16();
+        if (bom == 0xFFFE)
         {
             reader.ByteOrder = ByteOrder.LittleEndian;
         }
