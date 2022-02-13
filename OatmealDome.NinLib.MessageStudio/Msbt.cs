@@ -10,6 +10,8 @@ public sealed class Msbt
     private readonly Dictionary<string, int> _labelValueIdx = new Dictionary<string, int>();
     private readonly List<string> _strings = new List<string>();
 
+    private Encoding _encoding;
+
     public IEnumerable<string> Keys => _values.Keys;
 
     public Msbt(byte[] data)
@@ -58,7 +60,31 @@ public sealed class Msbt
 
         reader.Seek(2); // padding?
 
-        ushort version = reader.ReadUInt16();
+        byte encoding = reader.ReadByte();
+        switch (encoding)
+        {
+            case 0x0:
+                _encoding = Encoding.UTF8;
+                break;
+            case 0x1:
+                if (reader.ByteOrder == ByteOrder.BigEndian)
+                {
+                    _encoding = Encoding.BigEndianUnicode;
+                }
+                else
+                {
+                    _encoding = Encoding.Unicode;
+                }
+
+                break;
+            case 0x2:
+                _encoding = Encoding.UTF32;
+                break;
+            default:
+                throw new Exception($"Unsupported encoding '{encoding:x}'");
+        }
+
+        byte version = reader.ReadByte();
         ushort sectionCount = reader.ReadUInt16();
 
         reader.Seek(2); // padding?
@@ -139,7 +165,7 @@ public sealed class Msbt
 
             using (reader.TemporarySeek(startOffset + stringOffset, SeekOrigin.Begin))
             {
-                string label = reader.ReadString(StringDataFormat.ZeroTerminated, Encoding.Unicode);
+                string label = reader.ReadString(StringDataFormat.ZeroTerminated, _encoding);
 
                 _strings.Add(label);
             }
