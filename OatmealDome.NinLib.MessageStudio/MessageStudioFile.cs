@@ -39,49 +39,55 @@ public abstract class MessageStudioFile
     
     private void Read(Stream stream)
     {
-        using BinaryDataReader reader = new BinaryDataReader(stream);
+        ByteOrder byteOrder = ByteOrder.BigEndian;
 
-        // Set endianness to big by default
-        reader.ByteOrder = ByteOrder.BigEndian;
-
-        // Verify the magic numbers
-        if (reader.ReadString(8) != FileMagic)
+        using (BinaryDataReader startReader = new BinaryDataReader(stream, true))
         {
-            throw new MessageStudioException($"Not a {FileType} file");
+            // Set endianness to big by default
+            startReader.ByteOrder = ByteOrder.BigEndian;
+
+            // Verify the magic numbers
+            if (startReader.ReadString(8) != FileMagic)
+            {
+                throw new MessageStudioException($"Not a {FileType} file");
+            }
+
+            // Read BOM
+            ushort bom = startReader.ReadUInt16();
+            if (bom == 0xFFFE)
+            {
+                byteOrder = ByteOrder.LittleEndian;
+            }
+
+            startReader.Seek(2); // padding?
+
+            byte encoding = startReader.ReadByte();
+            switch (encoding)
+            {
+                case 0x0:
+                    FileEncoding = Encoding.UTF8;
+                    break;
+                case 0x1:
+                    if (byteOrder == ByteOrder.BigEndian)
+                    {
+                        FileEncoding = Encoding.BigEndianUnicode;
+                    }
+                    else
+                    {
+                        FileEncoding = Encoding.Unicode;
+                    }
+
+                    break;
+                case 0x2:
+                    FileEncoding = Encoding.UTF32;
+                    break;
+                default:
+                    throw new MessageStudioException($"Unsupported encoding '{encoding:x}'");
+            }
         }
 
-        // Read BOM
-        ushort bom = reader.ReadUInt16();
-        if (bom == 0xFFFE)
-        {
-            reader.ByteOrder = ByteOrder.LittleEndian;
-        }
-
-        reader.Seek(2); // padding?
-
-        byte encoding = reader.ReadByte();
-        switch (encoding)
-        {
-            case 0x0:
-                FileEncoding = Encoding.UTF8;
-                break;
-            case 0x1:
-                if (reader.ByteOrder == ByteOrder.BigEndian)
-                {
-                    FileEncoding = Encoding.BigEndianUnicode;
-                }
-                else
-                {
-                    FileEncoding = Encoding.Unicode;
-                }
-
-                break;
-            case 0x2:
-                FileEncoding = Encoding.UTF32;
-                break;
-            default:
-                throw new MessageStudioException($"Unsupported encoding '{encoding:x}'");
-        }
+        using BinaryDataReader reader = new BinaryDataReader(stream, FileEncoding);
+        reader.ByteOrder = byteOrder;
 
         byte version = reader.ReadByte();
         if (version != 0x3)
@@ -101,7 +107,7 @@ public abstract class MessageStudioFile
         {
             Trace.Assert(reader.Position % 0x10 == 0);
 
-            string sectionMagic = reader.ReadString(4);
+            string sectionMagic = reader.ReadString(4, Encoding.UTF8);
             int sectionSize = reader.ReadInt32();
 
             reader.Seek(8); // padding
@@ -135,7 +141,7 @@ public abstract class MessageStudioFile
                 for (int j = 0; j < labelCount; j++)
                 {
                     int stringLength = reader.ReadByte();
-                    string label = reader.ReadString(stringLength);
+                    string label = reader.ReadString(stringLength, Encoding.UTF8);
                     int index = reader.ReadInt32();
 
                     entries.Add(new HashTableEntry()
