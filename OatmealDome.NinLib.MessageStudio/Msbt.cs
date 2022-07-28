@@ -100,13 +100,35 @@ public sealed class Msbt : MessageStudioFile
                         ushort type = reader.ReadUInt16();
                         int parametersSize = reader.ReadUInt16();
 
-                        byte[] parameters = reader.ReadBytes(parametersSize);
-
-                        builder.Append($"[custom-tag group={group:x4} type={type:x4} params=");
-
-                        builder.AppendJoin(' ', parameters.Select(x => x.ToString("x2")));
-
-                        builder.Append("]");
+                        // Group 0 is "System", which is provided by the Message Studio library.
+                        if (group == 0)
+                        {
+                            switch (type)
+                            {
+                                case 3: // Color
+                                    Trace.Assert(parametersSize == 2, "Parameter size for color is not 2 bytes");
+                                    
+                                    ushort colorIdx = reader.ReadUInt16();
+                                    builder.Append($"[color={colorIdx:x4}]");
+                                    
+                                    break;
+                                default:
+                                    // TODO: Ruby, font, size, and page break tags
+                                    throw new MessageStudioException($"Unsupported system tag type '{type:x2}'");
+                            }
+                        }
+                        else if (c == 0xf)
+                        {
+                            throw new MessageStudioException($"Control tag end mark is not supported");
+                        }
+                        else
+                        {
+                            byte[] parameters = reader.ReadBytes(parametersSize);
+                            
+                            builder.Append($"[group={group:x4} type={type:x4} params=");
+                            builder.AppendJoin(' ', parameters.Select(x => x.ToString("x2")));
+                            builder.Append("]");
+                        }
                     }
                     else
                     {
