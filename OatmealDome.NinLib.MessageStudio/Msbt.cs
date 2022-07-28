@@ -42,7 +42,7 @@ public sealed class Msbt : MessageStudioFile
                 _messageLabelEntries = ReadHashTable(reader);
                 break;
             case "TXT2":
-                ReadTextSection(reader);
+                ReadTextSection(reader, sectionSize);
                 break;
             default:
                 // ATR1 not implemented
@@ -58,21 +58,40 @@ public sealed class Msbt : MessageStudioFile
         }
     }
 
-    private void ReadTextSection(BinaryDataReader reader)
+    private void ReadTextSection(BinaryDataReader reader, int sectionSize)
     {
-        long startOffset = reader.Position;
+        long sectionStartOffset = reader.Position;
 
         int offsetCount = reader.ReadInt32();
 
+        List<int> offsets = new List<int>();
         for (int i = 0; i < offsetCount; i++)
         {
-            int stringOffset = reader.ReadInt32();
+            offsets.Add(reader.ReadInt32());
+        }
 
-            using (reader.TemporarySeek(startOffset + stringOffset, SeekOrigin.Begin))
+        for (int i = 0; i < offsetCount; i++)
+        {
+            long startOffset = sectionStartOffset + offsets[i];
+            
+            long endOffset;
+            if (i != offsetCount - 1)
             {
-                string label = reader.ReadString(StringDataFormat.ZeroTerminated, FileEncoding);
+                endOffset = sectionStartOffset + offsets[i + 1];
+            }
+            else
+            {
+                endOffset = sectionStartOffset + sectionSize;
+            }
 
-                _strings.Add(label);
+            int length = (int)(endOffset - startOffset);
+
+            using (reader.TemporarySeek(startOffset, SeekOrigin.Begin))
+            {
+                byte[] textBytes = reader.ReadBytes(length);
+                string text = FileEncoding.GetString(textBytes);
+
+                _strings.Add(text);
             }
         }
     }
