@@ -105,6 +105,15 @@ public sealed class Msbt : MessageStudioFile
                         {
                             switch (type)
                             {
+                                case 2: // Size
+                                    Trace.Assert(parametersSize == 2, "Parameter size for size tag is not 2 bytes");
+                                    
+                                    int percent = reader.ReadUInt16();
+                                    Trace.Assert(percent <= 100, "Percentage of size not in valid range");
+                                    
+                                    builder.Append($"[size={percent}%]");
+
+                                    break;
                                 case 3: // Color
                                     Trace.Assert(parametersSize == 2, "Parameter size for color is not 2 bytes");
                                     
@@ -113,7 +122,7 @@ public sealed class Msbt : MessageStudioFile
                                     
                                     break;
                                 default:
-                                    // TODO: Ruby, font, size, and page break tags
+                                    // TODO: Ruby, font, and page break tags
                                     throw new MessageStudioException($"Unsupported system tag type '{type:x2}'");
                             }
                         }
