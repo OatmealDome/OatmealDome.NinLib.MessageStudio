@@ -90,6 +90,9 @@ public sealed class Msbt : MessageStudioFile
             {
                 StringBuilder builder = new StringBuilder();
 
+                // Tracks where we need to insert the closing ruby tag.
+                long? rubyEndOffset = null;
+                
                 while (reader.Position < endOffset)
                 {
                     char c = reader.ReadChar();
@@ -105,6 +108,18 @@ public sealed class Msbt : MessageStudioFile
                         {
                             switch (type)
                             {
+                                case 0: // Ruby (furigana)
+                                    int rubySize = reader.ReadUInt16();
+                                    int rubyTextLength = reader.ReadUInt16();
+                                    
+                                    byte[] rubyTextRaw = reader.ReadBytes(rubyTextLength);
+                                    string rubyText = FileEncoding.GetString(rubyTextRaw);
+
+                                    rubyEndOffset = reader.Position + rubySize;
+
+                                    builder.Append($"[ruby=\"{rubyText}\"]");
+
+                                    break;
                                 case 2: // Size
                                     Trace.Assert(parametersSize == 2, "Parameter size for size tag is not 2 bytes");
                                     
@@ -122,7 +137,7 @@ public sealed class Msbt : MessageStudioFile
                                     
                                     break;
                                 default:
-                                    // TODO: Ruby, font, and page break tags
+                                    // TODO: Font and page break tags
                                     throw new MessageStudioException($"Unsupported system tag type '{type:x2}'");
                             }
                         }
@@ -142,6 +157,13 @@ public sealed class Msbt : MessageStudioFile
                     else
                     {
                         builder.Append(c);
+                        
+                        if (rubyEndOffset.HasValue && rubyEndOffset <= reader.Position)
+                        {
+                            builder.Append("[/ruby]");
+
+                            rubyEndOffset = null;
+                        }
                     }
                 }
                 
