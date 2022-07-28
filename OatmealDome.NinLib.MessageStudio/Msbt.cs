@@ -4,29 +4,26 @@ using OatmealDome.BinaryData;
 
 namespace OatmealDome.NinLib.MessageStudio;
 
-public sealed class Msbt
+public sealed class Msbt : MessageStudioFile
 {
+    protected override string FileMagic => "MsgStdBn";
+
+    protected override string FileType => "Msbt";
+
     private readonly Dictionary<string, string> _values = new Dictionary<string, string>();
     private readonly Dictionary<string, int> _labelValueIdx = new Dictionary<string, int>();
     private readonly List<string> _strings = new List<string>();
 
-    private Encoding _encoding;
-
     public IEnumerable<string> Keys => _values.Keys;
 
-    public Msbt(byte[] data)
+    public Msbt(byte[] data) : base(data)
     {
-        using (MemoryStream memoryStream = new MemoryStream(data))
-        {
-            Read(memoryStream);
-        }
     }
 
-    public Msbt(Stream stream)
+    public Msbt(Stream stream) : base(stream)
     {
-        Read(stream);
     }
-
+    
     public bool ContainsKey(string label)
     {
         return _values.ContainsKey(label);
@@ -37,96 +34,24 @@ public sealed class Msbt
         return _values[label];
     }
 
-    // Based on MSBT file format documentation on ZeldaMods
-    private void Read(Stream stream)
+    protected override void ReadSection(BinaryDataReader reader, string sectionMagic, int sectionSize)
     {
-        using BinaryDataReader reader = new BinaryDataReader(stream);
-
-        // Set endianness to big by default
-        reader.ByteOrder = ByteOrder.BigEndian;
-
-        // Verify the magic numbers
-        if (reader.ReadString(8) != "MsgStdBn")
+        switch (sectionMagic)
         {
-            throw new MessageStudioException("Not a MSBT file");
-        }
-
-        // Read BOM
-        ushort bom = reader.ReadUInt16();
-        if (bom == 0xFFFE)
-        {
-            reader.ByteOrder = ByteOrder.LittleEndian;
-        }
-
-        reader.Seek(2); // padding?
-
-        byte encoding = reader.ReadByte();
-        switch (encoding)
-        {
-            case 0x0:
-                _encoding = Encoding.UTF8;
+            case "LBL1":
+                ReadLabelsSection(reader);
                 break;
-            case 0x1:
-                if (reader.ByteOrder == ByteOrder.BigEndian)
-                {
-                    _encoding = Encoding.BigEndianUnicode;
-                }
-                else
-                {
-                    _encoding = Encoding.Unicode;
-                }
-
-                break;
-            case 0x2:
-                _encoding = Encoding.UTF32;
+            case "TXT2":
+                ReadTextSection(reader);
                 break;
             default:
-                throw new MessageStudioException($"Unsupported encoding '{encoding:x}'");
+                // ATR1 not implemented
+                break;
         }
+    }
 
-        byte version = reader.ReadByte();
-        if (version != 0x3)
-        {
-            throw new MessageStudioException($"Unsupported version '{version}'");
-        }
-        
-        ushort sectionCount = reader.ReadUInt16();
-
-        reader.Seek(2); // padding?
-
-        uint fileSize = reader.ReadUInt32();
-
-        reader.Seek(10); // padding?
-
-        for (int i = 0; i < sectionCount; i++)
-        {
-            Trace.Assert(reader.Position % 0x10 == 0);
-
-            string sectionMagic = reader.ReadString(4);
-            int sectionSize = reader.ReadInt32();
-
-            reader.Seek(8); // padding
-
-            long sectionStart = reader.Position;
-
-            switch (sectionMagic)
-            {
-                case "LBL1":
-                    ReadLabelsSection(reader);
-                    break;
-                case "TXT2":
-                    ReadTextSection(reader);
-                    break;
-                default:
-                    // ATR1 not implemented
-                    break;
-            }
-
-            // Seek to next table
-            reader.Seek(sectionStart + sectionSize, SeekOrigin.Begin);
-            reader.Align(0x10);
-        }
-
+    protected override void FinalizeRead(BinaryDataReader reader)
+    {
         foreach (KeyValuePair<string, int> labelPair in _labelValueIdx)
         {
             _values[labelPair.Key] = _strings[labelPair.Value];
@@ -170,7 +95,7 @@ public sealed class Msbt
 
             using (reader.TemporarySeek(startOffset + stringOffset, SeekOrigin.Begin))
             {
-                string label = reader.ReadString(StringDataFormat.ZeroTerminated, _encoding);
+                string label = reader.ReadString(StringDataFormat.ZeroTerminated, FileEncoding);
 
                 _strings.Add(label);
             }
