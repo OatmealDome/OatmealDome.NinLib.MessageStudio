@@ -11,7 +11,7 @@ public sealed class Msbt : MessageStudioFile
     protected override string FileType => "Msbt";
 
     private readonly Dictionary<string, string> _values = new Dictionary<string, string>();
-    private readonly Dictionary<string, int> _labelValueIdx = new Dictionary<string, int>();
+    private List<HashTableEntry> _messageLabelEntries = new List<HashTableEntry>();
     private readonly List<string> _strings = new List<string>();
 
     public IEnumerable<string> Keys => _values.Keys;
@@ -39,7 +39,7 @@ public sealed class Msbt : MessageStudioFile
         switch (sectionMagic)
         {
             case "LBL1":
-                ReadLabelsSection(reader);
+                _messageLabelEntries = ReadHashTable(reader);
                 break;
             case "TXT2":
                 ReadTextSection(reader);
@@ -52,34 +52,9 @@ public sealed class Msbt : MessageStudioFile
 
     protected override void FinalizeRead(BinaryDataReader reader)
     {
-        foreach (KeyValuePair<string, int> labelPair in _labelValueIdx)
+        foreach (HashTableEntry entry in _messageLabelEntries)
         {
-            _values[labelPair.Key] = _strings[labelPair.Value];
-        }
-    }
-
-    private void ReadLabelsSection(BinaryDataReader reader)
-    {
-        long startOffset = reader.Position;
-
-        int offsetCount = reader.ReadInt32();
-
-        for (int i = 0; i < offsetCount; i++)
-        {
-            int stringCount = reader.ReadInt32();
-            int stringOffset = reader.ReadInt32();
-
-            using (reader.TemporarySeek(startOffset + stringOffset, SeekOrigin.Begin))
-            {
-                for (int j = 0; j < stringCount; j++)
-                {
-                    int stringLength = reader.ReadByte();
-                    string label = reader.ReadString(stringLength);
-                    int textTableIndex = reader.ReadInt32();
-
-                    _labelValueIdx[label] = textTableIndex;
-                }
-            }
+            _values[entry.Label] = _strings[entry.Index];
         }
     }
 

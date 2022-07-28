@@ -17,6 +17,12 @@ public abstract class MessageStudioFile
     }
     
     protected Encoding FileEncoding;
+
+    protected struct HashTableEntry
+    {
+        public string Label;
+        public int Index;
+    }
     
     protected MessageStudioFile(byte[] data)
     {
@@ -110,6 +116,38 @@ public abstract class MessageStudioFile
         }
         
         FinalizeRead(reader);
+    }
+
+    protected List<HashTableEntry> ReadHashTable(BinaryDataReader reader)
+    {
+        long startOffset = reader.Position;
+
+        int slotCount = reader.ReadInt32();
+
+        List<HashTableEntry> entries = new List<HashTableEntry>();
+        for (int i = 0; i < slotCount; i++)
+        {
+            int labelCount = reader.ReadInt32();
+            int labelOffset = reader.ReadInt32();
+
+            using (reader.TemporarySeek(startOffset + labelOffset, SeekOrigin.Begin))
+            {
+                for (int j = 0; j < labelCount; j++)
+                {
+                    int stringLength = reader.ReadByte();
+                    string label = reader.ReadString(stringLength);
+                    int index = reader.ReadInt32();
+
+                    entries.Add(new HashTableEntry()
+                    {
+                        Label = label,
+                        Index = index
+                    });
+                }
+            }
+        }
+
+        return entries;
     }
 
     protected abstract void ReadSection(BinaryDataReader reader, string sectionMagic, int sectionSize);
