@@ -103,7 +103,7 @@ public sealed class Msbt
             Trace.Assert(reader.Position % 0x10 == 0);
 
             string sectionMagic = reader.ReadString(4);
-            uint sectionSize = reader.ReadUInt32();
+            int sectionSize = reader.ReadInt32();
 
             reader.Seek(8); // padding
 
@@ -137,20 +137,20 @@ public sealed class Msbt
     {
         long startOffset = reader.Position;
 
-        uint offsetCount = reader.ReadUInt32();
+        int offsetCount = reader.ReadInt32();
 
-        for (uint i = 0; i < offsetCount; i++)
+        for (int i = 0; i < offsetCount; i++)
         {
-            uint stringCount = reader.ReadUInt32();
-            uint stringOffset = reader.ReadUInt32();
+            int stringCount = reader.ReadInt32();
+            int stringOffset = reader.ReadInt32();
 
             using (reader.TemporarySeek(startOffset + stringOffset, SeekOrigin.Begin))
             {
-                for (uint j = 0; j < stringCount; j++)
+                for (int j = 0; j < stringCount; j++)
                 {
                     int stringLength = reader.ReadByte();
                     string label = reader.ReadString(stringLength);
-                    int textTableIndex = (int)reader.ReadUInt32();
+                    int textTableIndex = reader.ReadInt32();
 
                     _labelValueIdx[label] = textTableIndex;
                 }
@@ -162,11 +162,11 @@ public sealed class Msbt
     {
         long startOffset = reader.Position;
 
-        uint offsetCount = reader.ReadUInt32();
+        int offsetCount = reader.ReadInt32();
 
-        for (uint i = 0; i < offsetCount; i++)
+        for (int i = 0; i < offsetCount; i++)
         {
-            uint stringOffset = reader.ReadUInt32();
+            int stringOffset = reader.ReadInt32();
 
             using (reader.TemporarySeek(startOffset + stringOffset, SeekOrigin.Begin))
             {
