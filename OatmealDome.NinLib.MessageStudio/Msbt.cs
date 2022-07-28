@@ -88,10 +88,33 @@ public sealed class Msbt : MessageStudioFile
 
             using (reader.TemporarySeek(startOffset, SeekOrigin.Begin))
             {
-                byte[] textBytes = reader.ReadBytes(length);
-                string text = FileEncoding.GetString(textBytes);
+                StringBuilder builder = new StringBuilder();
 
-                _strings.Add(text);
+                while (reader.Position < endOffset)
+                {
+                    char c = reader.ReadChar();
+
+                    if (c == 0xe) // control tag start
+                    {
+                        ushort group = reader.ReadUInt16();
+                        ushort type = reader.ReadUInt16();
+                        int parametersSize = reader.ReadUInt16();
+
+                        byte[] parameters = reader.ReadBytes(parametersSize);
+
+                        builder.Append($"[custom-tag group={group:x4} type={type:x4} params=");
+
+                        builder.AppendJoin(' ', parameters.Select(x => x.ToString("x2")));
+
+                        builder.Append("]");
+                    }
+                    else
+                    {
+                        builder.Append(c);
+                    }
+                }
+                
+                _strings.Add(builder.ToString());
             }
         }
     }
