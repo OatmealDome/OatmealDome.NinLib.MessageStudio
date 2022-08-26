@@ -120,6 +120,41 @@ public sealed class Msbt : MessageStudioFile
 
         return builder.ToString();
     }
+    
+    public string GetWithoutTags(string label)
+    {
+        using MemoryStream stream = new MemoryStream(_values[label]);
+        using BinaryDataReader reader = new BinaryDataReader(stream, FileEncoding);
+        reader.ByteOrder = FileByteOrder;
+        
+        StringBuilder builder = new StringBuilder();
+
+        while (reader.Position < reader.Length)
+        {
+            char c = reader.ReadChar();
+
+            if (c == 0xe) // control tag start
+            {
+                reader.Seek(4); // skip group and type
+                
+                int parametersSize = reader.ReadUInt16();
+                reader.Seek(parametersSize);
+            }
+            else if (c == 0xf) // control tag end?
+            {
+                continue;
+            }
+            else
+            {
+                builder.Append(c);
+            }
+        }
+        
+        // Strip the trailing NUL byte.
+        builder.Length -= 1;
+
+        return builder.ToString();
+    }
 
     protected override void ReadSection(BinaryDataReader reader, string sectionMagic, int sectionSize)
     {
