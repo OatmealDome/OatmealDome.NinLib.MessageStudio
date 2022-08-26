@@ -10,9 +10,10 @@ public sealed class Msbt : MessageStudioFile
 
     protected override string FileType => "Msbt";
 
-    private readonly Dictionary<string, string> _values = new Dictionary<string, string>();
+    private readonly Dictionary<string, byte[]> _values = new Dictionary<string, byte[]>();
+
     private List<HashTableEntry> _messageLabelEntries = new List<HashTableEntry>();
-    private readonly List<string> _strings = new List<string>();
+    private List<byte[]> _stringData = new List<byte[]>();
 
     public IEnumerable<string> Keys => _values.Keys;
 
@@ -31,7 +32,93 @@ public sealed class Msbt : MessageStudioFile
 
     public string Get(string label)
     {
-        return _values[label];
+        using MemoryStream stream = new MemoryStream(_values[label]);
+        using BinaryDataReader reader = new BinaryDataReader(stream, FileEncoding);
+        reader.ByteOrder = FileByteOrder;
+        
+        StringBuilder builder = new StringBuilder();
+
+        // Tracks where we need to insert the closing ruby tag.
+        long? rubyEndOffset = null;
+        
+        while (reader.Position < reader.Length)
+        {
+            char c = reader.ReadChar();
+
+            if (c == 0xe) // control tag start
+            {
+                ushort group = reader.ReadUInt16();
+                ushort type = reader.ReadUInt16();
+                int parametersSize = reader.ReadUInt16();
+
+                // Group 0 is "System", which is provided by the Message Studio library.
+                if (group == 0)
+                {
+                    switch (type)
+                    {
+                        case 0: // Ruby (furigana)
+                            int rubySize = reader.ReadUInt16();
+                            int rubyTextLength = reader.ReadUInt16();
+                            
+                            byte[] rubyTextRaw = reader.ReadBytes(rubyTextLength);
+                            string rubyText = FileEncoding.GetString(rubyTextRaw);
+
+                            rubyEndOffset = reader.Position + rubySize;
+
+                            builder.Append($"[ruby=\"{rubyText}\"]");
+
+                            break;
+                        case 2: // Size
+                            Trace.Assert(parametersSize == 2, "Parameter size for size tag is not 2 bytes");
+                            
+                            int percent = reader.ReadUInt16();
+                            Trace.Assert(percent <= 100, "Percentage of size not in valid range");
+                            
+                            builder.Append($"[size={percent}%]");
+
+                            break;
+                        case 3: // Color
+                            Trace.Assert(parametersSize == 2, "Parameter size for color is not 2 bytes");
+                            
+                            ushort colorIdx = reader.ReadUInt16();
+                            builder.Append($"[color={colorIdx:x4}]");
+                            
+                            break;
+                        default:
+                            // TODO: Font and page break tags
+                            throw new MessageStudioException($"Unsupported system tag type '{type:x2}'");
+                    }
+                }
+                else if (c == 0xf)
+                {
+                    throw new MessageStudioException($"Control tag end mark is not supported");
+                }
+                else
+                {
+                    byte[] parameters = reader.ReadBytes(parametersSize);
+                    
+                    builder.Append($"[group={group:x4} type={type:x4} params=");
+                    builder.AppendJoin(' ', parameters.Select(x => x.ToString("x2")));
+                    builder.Append("]");
+                }
+            }
+            else
+            {
+                builder.Append(c);
+                
+                if (rubyEndOffset.HasValue && rubyEndOffset <= reader.Position)
+                {
+                    builder.Append("[/ruby]");
+
+                    rubyEndOffset = null;
+                }
+            }
+        }
+
+        // Strip the trailing NUL byte.
+        builder.Length -= 1;
+
+        return builder.ToString();
     }
 
     protected override void ReadSection(BinaryDataReader reader, string sectionMagic, int sectionSize)
@@ -54,7 +141,7 @@ public sealed class Msbt : MessageStudioFile
     {
         foreach (HashTableEntry entry in _messageLabelEntries)
         {
-            _values[entry.Label] = _strings[entry.Index];
+            _values[entry.Label] = _stringData[entry.Index];
         }
     }
 
@@ -88,86 +175,7 @@ public sealed class Msbt : MessageStudioFile
 
             using (reader.TemporarySeek(startOffset, SeekOrigin.Begin))
             {
-                StringBuilder builder = new StringBuilder();
-
-                // Tracks where we need to insert the closing ruby tag.
-                long? rubyEndOffset = null;
-                
-                while (reader.Position < endOffset)
-                {
-                    char c = reader.ReadChar();
-
-                    if (c == 0xe) // control tag start
-                    {
-                        ushort group = reader.ReadUInt16();
-                        ushort type = reader.ReadUInt16();
-                        int parametersSize = reader.ReadUInt16();
-
-                        // Group 0 is "System", which is provided by the Message Studio library.
-                        if (group == 0)
-                        {
-                            switch (type)
-                            {
-                                case 0: // Ruby (furigana)
-                                    int rubySize = reader.ReadUInt16();
-                                    int rubyTextLength = reader.ReadUInt16();
-                                    
-                                    byte[] rubyTextRaw = reader.ReadBytes(rubyTextLength);
-                                    string rubyText = FileEncoding.GetString(rubyTextRaw);
-
-                                    rubyEndOffset = reader.Position + rubySize;
-
-                                    builder.Append($"[ruby=\"{rubyText}\"]");
-
-                                    break;
-                                case 2: // Size
-                                    Trace.Assert(parametersSize == 2, "Parameter size for size tag is not 2 bytes");
-                                    
-                                    int percent = reader.ReadUInt16();
-                                    Trace.Assert(percent <= 100, "Percentage of size not in valid range");
-                                    
-                                    builder.Append($"[size={percent}%]");
-
-                                    break;
-                                case 3: // Color
-                                    Trace.Assert(parametersSize == 2, "Parameter size for color is not 2 bytes");
-                                    
-                                    ushort colorIdx = reader.ReadUInt16();
-                                    builder.Append($"[color={colorIdx:x4}]");
-                                    
-                                    break;
-                                default:
-                                    // TODO: Font and page break tags
-                                    throw new MessageStudioException($"Unsupported system tag type '{type:x2}'");
-                            }
-                        }
-                        else if (c == 0xf)
-                        {
-                            throw new MessageStudioException($"Control tag end mark is not supported");
-                        }
-                        else
-                        {
-                            byte[] parameters = reader.ReadBytes(parametersSize);
-                            
-                            builder.Append($"[group={group:x4} type={type:x4} params=");
-                            builder.AppendJoin(' ', parameters.Select(x => x.ToString("x2")));
-                            builder.Append("]");
-                        }
-                    }
-                    else
-                    {
-                        builder.Append(c);
-                        
-                        if (rubyEndOffset.HasValue && rubyEndOffset <= reader.Position)
-                        {
-                            builder.Append("[/ruby]");
-
-                            rubyEndOffset = null;
-                        }
-                    }
-                }
-                
-                _strings.Add(builder.ToString());
+                _stringData.Add(reader.ReadBytes(length));
             }
         }
     }
