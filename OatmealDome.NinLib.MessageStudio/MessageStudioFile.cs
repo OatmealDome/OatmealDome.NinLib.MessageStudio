@@ -15,7 +15,8 @@ public abstract class MessageStudioFile
     {
         get;
     }
-    
+
+    protected ByteOrder FileByteOrder;
     protected Encoding FileEncoding;
 
     protected struct HashTableEntry
@@ -86,8 +87,10 @@ public abstract class MessageStudioFile
             }
         }
 
+        FileByteOrder = byteOrder;
+
         using BinaryDataReader reader = new BinaryDataReader(stream, FileEncoding);
-        reader.ByteOrder = byteOrder;
+        reader.ByteOrder = FileByteOrder;
 
         byte version = reader.ReadByte();
         if (version != 0x3)
