@@ -72,8 +72,6 @@ public sealed class Msbt : MessageStudioFile
                             Trace.Assert(parametersSize == 2, "Parameter size for size tag is not 2 bytes");
                             
                             int percent = reader.ReadUInt16();
-                            Trace.Assert(percent <= 100, "Percentage of size not in valid range");
-                            
                             builder.Append($"[size={percent}%]");
 
                             break;
