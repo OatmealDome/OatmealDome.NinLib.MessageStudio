@@ -84,8 +84,14 @@ public sealed class Msbt : MessageStudioFile
                             builder.Append($"[color={colorIdx:x4}]");
                             
                             break;
+                        case 4: // Page Break
+                            Trace.Assert(parametersSize == 0, "Parameter size for page break is not 0 bytes");
+
+                            builder.Append("[page break]");
+                            
+                            break;
                         default:
-                            // TODO: Font and page break tags
+                            // TODO: Font tag
                             throw new MessageStudioException($"Unsupported system tag type '{type:x2}'");
                     }
                 }
