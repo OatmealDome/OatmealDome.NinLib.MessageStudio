@@ -93,10 +93,6 @@ public sealed class Msbt : MessageStudioFile
                             throw new MessageStudioException($"Unsupported system tag type '{type:x2}'");
                     }
                 }
-                else if (c == 0xf)
-                {
-                    throw new MessageStudioException($"Control tag end mark is not supported");
-                }
                 else
                 {
                     byte[] parameters = reader.ReadBytes(parametersSize);
@@ -105,6 +101,13 @@ public sealed class Msbt : MessageStudioFile
                     builder.AppendJoin(' ', parameters.Select(x => x.ToString("x2")));
                     builder.Append("]");
                 }
+            }
+            else if (c == 0xf)
+            {
+                ushort group = reader.ReadUInt16();
+                ushort type = reader.ReadUInt16();
+                
+                builder.Append($"[/group={group:x4} type={type:x4}]");
             }
             else
             {
@@ -144,9 +147,9 @@ public sealed class Msbt : MessageStudioFile
                 int parametersSize = reader.ReadUInt16();
                 reader.Seek(parametersSize);
             }
-            else if (c == 0xf) // control tag end?
+            else if (c == 0xf) // control tag end
             {
-                continue;
+                reader.Seek(4); // skip group and type
             }
             else
             {
