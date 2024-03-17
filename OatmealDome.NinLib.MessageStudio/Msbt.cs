@@ -89,7 +89,7 @@ public sealed class Msbt : MessageStudioFile
                                 colorIdx = reader.ReadUInt32();
                             }
 
-                            string colorIdxStr = colorIdx.ToString("x" + (colorIdx * 2));
+                            string colorIdxStr = colorIdx.ToString("x" + (parametersSize * 2));
 
                             builder.Append($"[color={colorIdxStr}]");
                             
