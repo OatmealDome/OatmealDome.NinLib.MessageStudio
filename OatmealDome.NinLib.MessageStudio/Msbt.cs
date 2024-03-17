@@ -76,10 +76,22 @@ public sealed class Msbt : MessageStudioFile
 
                             break;
                         case 3: // Color
-                            Trace.Assert(parametersSize == 2, "Parameter size for color is not 2 bytes");
+                            Trace.Assert(parametersSize == 2 || parametersSize == 4, "Parameter size for color is not 2 or 4 bytes");
                             
-                            ushort colorIdx = reader.ReadUInt16();
-                            builder.Append($"[color={colorIdx:x4}]");
+                            uint colorIdx;
+                            
+                            if (parametersSize == 2)
+                            {
+                                colorIdx = reader.ReadUInt16();
+                            }
+                            else
+                            {
+                                colorIdx = reader.ReadUInt32();
+                            }
+
+                            string colorIdxStr = colorIdx.ToString("x" + (colorIdx * 2));
+
+                            builder.Append($"[color={colorIdxStr}]");
                             
                             break;
                         case 4: // Page Break
